@@ -19,8 +19,6 @@
 #endregion
 
 #region Using Statements
-using DarkUI.Config;
-using DarkUI.Forms;
 using ImageSimilarity;
 using ItemEditor.Controls;
 using ItemEditor.Diagnostics;
@@ -39,11 +37,12 @@ using System.Drawing.Imaging;
 using System.IO;
 using System.Reflection;
 using System.Windows.Forms;
+using static System.Net.Mime.MediaTypeNames;
 #endregion
 
 namespace ItemEditor
 {
-    public partial class MainForm : DarkForm
+    public partial class MainForm : Form
     {
         #region Private Properties
 
@@ -191,20 +190,6 @@ namespace ItemEditor
                 this.Loaded = true;
                 this.BuildItemsListBox();
             }
-
-            try
-            {
-                string directory = Path.GetDirectoryName(path);
-                if (Directory.Exists(directory))
-                {
-                    ItemsXmlReader xmlReader = new ItemsXmlReader();
-                    xmlReader.Read(directory, ServerItems);
-                }
-            }
-            catch (Exception ex)
-            {
-                Trace.WriteLine(ex.StackTrace);
-            }
         }
 
         public void Save()
@@ -242,9 +227,10 @@ namespace ItemEditor
                 return;
             }
 
+            // Create a SaveFileDialog to select the save format
             SaveFileDialog dialog = new SaveFileDialog();
-            dialog.Filter = "OTB files (*.otb)|*.otb";
-            dialog.Title = "Save OTB File";
+            dialog.Filter = "OTB files (*.otb)|*.otb|XML files (*.xml)|*.xml";
+            dialog.Title = "Save File";
 
             if (dialog.ShowDialog() == DialogResult.OK)
             {
@@ -256,12 +242,28 @@ namespace ItemEditor
                 try
                 {
                     OtbWriter writer = new OtbWriter(this.ServerItems);
-                    if (writer.Write(dialog.FileName))
+
+                    // Determine the file extension and save accordingly
+                    string extension = Path.GetExtension(dialog.FileName).ToLower();
+                    if (extension == ".otb")
                     {
-                        this.CurrentOtbFullPath = dialog.FileName;
-                        this.IsTemporary = false;
-                        this.Saved = true;
-                        Trace.WriteLine("Saved.");
+                        if (writer.Write(dialog.FileName))
+                        {
+                            this.CurrentOtbFullPath = dialog.FileName;
+                            this.IsTemporary = false;
+                            this.Saved = true;
+                            Trace.WriteLine("Saved in Binary format.");
+                        }
+                    }
+                    else if (extension == ".xml")
+                    {
+                        if (writer.WriteToXml(dialog.FileName))
+                        {
+                            this.CurrentOtbFullPath = dialog.FileName;
+                            this.IsTemporary = false;
+                            this.Saved = true;
+                            Trace.WriteLine("Saved in XML format.");
+                        }
                     }
                 }
                 catch (UnauthorizedAccessException exception)
@@ -366,7 +368,20 @@ namespace ItemEditor
             item.ID = 100;
 
             ServerItemList items = new ServerItemList();
-            items.MajorVersion = 3;
+
+            if (client.Version >= 740 && client.Version <= 792)
+            {
+                items.MajorVersion = 1;
+            }
+            else if (client.Version >= 800 && client.Version <= 811)
+            {
+                items.MajorVersion = 2;
+            }
+            else
+            {
+                items.MajorVersion = 3;
+            }
+
             items.MinorVersion = client.OtbVersion;
             items.BuildNumber = 1;
             items.ClientVersion = client.Version;
@@ -573,14 +588,14 @@ namespace ItemEditor
             this.pictureBox.ClientItem = clientItem;
             if (!item.IsCustomCreated && item.SpriteHash != null && clientItem.SpriteHash != null)
             {
-                this.pictureBox.BackColor = Utils.ByteArrayCompare(item.SpriteHash, clientItem.SpriteHash) ? Colors.DarkBackground : Color.Red;
+                this.pictureBox.BackColor = Utils.ByteArrayCompare(item.SpriteHash, clientItem.SpriteHash) ? Color.White : Color.Red;
             }
 
             this.typeCombo.Text = item.Type.ToString();
-            this.typeCombo.ForeColor = item.Type == clientItem.Type ? Colors.LightText : Color.Red;
+            this.typeCombo.ForeColor = item.Type == clientItem.Type ? Color.Black : Color.Red;
 
             this.stackOrderComboBox.Text = item.StackOrder.ToString();
-            this.stackOrderComboBox.ForeColor = item.StackOrder == clientItem.StackOrder ? Colors.LightText : Color.Red;
+            this.stackOrderComboBox.ForeColor = item.StackOrder == clientItem.StackOrder ? Color.Black : Color.Red;
 
             this.serverIdLbl.DataBindings.Add("Text", item, "ID");
             this.clientIdUpDown.Minimum = this.ServerItems.MinId;
@@ -646,7 +661,7 @@ namespace ItemEditor
         {
             bool equals = value.Equals(clientValue);
             control.DataBindings.Add(propertyName, dataSource, dataMember);
-            control.ForeColor = equals ? Colors.LightText : Color.Red;
+            control.ForeColor = equals ? Color.Black : Color.Red;
 
             if (!equals && setToolTip)
             {
@@ -678,15 +693,15 @@ namespace ItemEditor
             this.optionsGroupBox.Enabled = false;
             this.appearanceGroupBox.Enabled = false;
             this.pictureBox.ClientItem = null;
-            this.pictureBox.BackColor = Colors.DarkBackground;
+            this.pictureBox.BackColor = Color.White;
             this.previousPictureBox.ClientItem = null;
-            this.previousPictureBox.BackColor = Colors.DarkBackground;
+            this.previousPictureBox.BackColor = Color.White;
             this.clientIdUpDown.Value = clientIdUpDown.Minimum;
             this.serverIdLbl.Text = "0";
             this.typeCombo.Text = string.Empty;
-            this.typeCombo.ForeColor = Colors.LightText;
+            this.typeCombo.ForeColor = Color.Black;
             this.stackOrderComboBox.Text = string.Empty;
-            this.stackOrderComboBox.ForeColor = Colors.LightText;
+            this.stackOrderComboBox.ForeColor = Color.Black;
             this.editDuplicateItemMenuItem.Enabled = false;
             this.candidatesButton.Enabled = false;
 
@@ -695,12 +710,12 @@ namespace ItemEditor
                 if (control is CheckBox)
                 {
                     ((CheckBox)control).Checked = false;
-                    control.ForeColor = Colors.LightText;
+                    control.ForeColor = Color.Black;
                 }
                 else if (control is TextBox)
                 {
                     ((TextBox)control).Text = string.Empty;
-                    control.ForeColor = Colors.LightText;
+                    control.ForeColor = Color.Black;
                 }
             }
         }
@@ -745,7 +760,7 @@ namespace ItemEditor
             }
 
             signatureList.Sort(
-                delegate(KeyValuePair<double, ServerItem> item1, KeyValuePair<double, ServerItem> item2)
+                delegate (KeyValuePair<double, ServerItem> item1, KeyValuePair<double, ServerItem> item2)
                 {
                     return item1.Key.CompareTo(item2.Key);
                 });
@@ -811,7 +826,7 @@ namespace ItemEditor
         private bool LoadClient(Plugin plugin, uint otbVersion)
         {
             SupportedClient client = plugin.Instance.SupportedClients.Find(
-                delegate(SupportedClient sc)
+                delegate (SupportedClient sc)
                 {
                     return sc.OtbVersion == otbVersion;
                 });
@@ -872,7 +887,7 @@ namespace ItemEditor
                 return false;
             }
 
-            Trace.WriteLine(string.Format("OTB version {0}.", otbVersion));
+            Trace.WriteLine(string.Format("OTB version {0}. Tibia client version {1}", otbVersion, client.Version));
 
             bool result;
 
@@ -956,7 +971,7 @@ namespace ItemEditor
         {
             AssemblyName assemblyName = Assembly.GetExecutingAssembly().GetName();
             ApplicationName = assemblyName.Name;
-            ApplicationVersion = assemblyName.Version.Major + "." + assemblyName.Version.Minor;
+            ApplicationVersion = assemblyName.Version.Major + "." + assemblyName.Version.Minor + "." + assemblyName.Version.Build;
 
             this.Text = ApplicationName + " " + ApplicationVersion;
             this.typeCombo.DataSource = Enum.GetNames(typeof(ServerItemType));
@@ -1028,7 +1043,6 @@ namespace ItemEditor
                 itemsListBoxContextMenu.Items.Add("-");
                 itemsListBoxContextMenu.Items.Add("Copy Server ID");
                 itemsListBoxContextMenu.Items.Add("Copy Client ID");
-                itemsListBoxContextMenu.Items.Add("Copy Name");
             }
         }
 
@@ -1052,14 +1066,10 @@ namespace ItemEditor
                 case "Copy Client ID":
                     Clipboard.SetText(CurrentServerItem.ClientId.ToString());
                     break;
-
-                case "Copy Name":
-                    Clipboard.SetText(CurrentServerItem.NameXml);
-                    break;
             }
         }
 
-        private void ItemsListBox_SelectedIndexChanged(object sender)
+        private void ItemsListBox_SelectedIndexChanged(object sender, System.EventArgs e)
         {
             this.SelectItem(this.serverItemListBox.SelectedItem as ServerItem);
         }
